@@ -237,6 +237,22 @@ If you prefer `npx`:
 }
 ```
 
+### Remote Server
+
+If you want to host the server remotely (e.g., using Render, Railway, or VPS) and connect via an SSE stream instead of local `stdio`, you can start the server in SSE mode:
+
+```bash
+# Export your configuration first
+export AFFINE_API_TOKEN="your_token..."
+export AFFINE_BASE_URL="https://app.affine.pro"
+export PORT=3000
+
+# Start in SSE mode
+npm run start:sse
+# OR manually:
+# MCP_TRANSPORT=sse node dist/index.js
+```
+
 ## Available Tools
 
 ### Workspace
