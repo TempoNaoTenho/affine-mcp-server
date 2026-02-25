@@ -9,6 +9,19 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
   const app = createMcpExpressApp({ host: '0.0.0.0' });
   app.use(cors());
 
+  // Simple authentication middleware
+  const expectedToken = process.env.MCP_SERVER_TOKEN;
+  if (expectedToken) {
+    app.use((req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      next();
+    });
+  }
+
   // Make sure to parse JSON bodies for the POST requests
   app.use(express.json({ limit: "50mb" }));
 

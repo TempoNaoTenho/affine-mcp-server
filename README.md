@@ -253,6 +253,23 @@ npm run start:sse
 # MCP_TRANSPORT=sse node dist/index.js
 ```
 
+**Authentication (Highly Recommended):**
+By default, the SSE endpoint is open to anyone who has its URL. To secure it, set the `MCP_SERVER_TOKEN` environment variable on your host:
+```bash
+export MCP_SERVER_TOKEN="my-super-secret-password"
+```
+When this is set, the server will require an `Authorization: Bearer my-super-secret-password` header on all `/sse` and `/messages` requests.
+
+**Cloudflare Integration:**
+Since this server uses WebSockets heavily for document syncing (via `yjs`), it must be hosted in an environment that supports persistent connections (not pure stateless Cloudflare Workers without Durable Objects). 
+
+Once deployed (e.g., `https://affine.yourdomain.com`), you can securely expose the `/sse` endpoint through Cloudflare Zero Trust:
+1. Create a new **MCP Server** application in Cloudflare Access.
+2. Set the Transport Type to **HTTP / SSE** and Target URL to `https://affine.yourdomain.com/sse`.
+3. If your host requires generic `Authorization` headers, add them to the Service settings.
+4. Users can now point their local Cloudflare Access `/mcp` tools directly to your Zero Trust Portal without needing to distribute the original `AFFINE_API_TOKEN` to client machines.
+
+
 ## Available Tools
 
 ### Workspace
