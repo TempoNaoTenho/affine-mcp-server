@@ -251,7 +251,7 @@ export PORT=3000
 npm run start:http
 # OR manually:
 # MCP_TRANSPORT=http node dist/index.js
-# ("sse" is still accepted as a legacy alias)
+# ("sse" is still accepted at /sse)
 ```
 
 ## Available Tools
