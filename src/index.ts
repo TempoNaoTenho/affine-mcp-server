@@ -15,7 +15,7 @@ import { registerNotificationTools } from "./tools/notifications.js";
 import { loginWithPassword } from "./auth.js";
 import { registerAuthTools } from "./tools/auth.js";
 import { runCli } from "./cli.js";
-import { startSSEServer } from "./sse.js";
+import { startHttpMcpServer } from "./sse.js";
 
 // CLI subcommands: affine-mcp login|status|logout
 const subcommand = process.argv[2];
@@ -107,11 +107,34 @@ async function buildServer() {
 }
 
 async function start() {
+  // MCP_TRANSPORT aliases:
+  // - "stdio" (default): local desktop MCP clients
+  // - "http" / "streamable": HTTP MCP server exposing /mcp (preferred)
+  // - "sse": legacy alias retained for backward compatibility
   const transportMode = (process.env.MCP_TRANSPORT || "stdio").toLowerCase();
-  
-  if (transportMode === "sse") {
-    const port = parseInt(process.env.PORT || "3000", 10);
-    await startSSEServer(buildServer, port);
+  const useHttpTransport =
+    transportMode === "sse" || transportMode === "http" || transportMode === "streamable";
+
+  if (useHttpTransport) {
+    const DEFAULT_PORT = 3000;
+    const portEnvValue = process.env.PORT;
+
+    let port = DEFAULT_PORT;
+
+    // Validate the HTTP server port if provided.
+    if (portEnvValue != null && portEnvValue.trim() !== "") {
+      const parsedPort = Number(portEnvValue);
+
+      if (Number.isInteger(parsedPort) && parsedPort >= 0 && parsedPort <= 65535) {
+        port = parsedPort;
+      } else {
+        console.warn(
+          `[affine-mcp] Invalid PORT "${portEnvValue}" (expected 0..65535 integer). Falling back to ${DEFAULT_PORT}.`
+        );
+      }
+    }
+
+    await startHttpMcpServer(buildServer, port);
   } else {
     // stdio transport is the default for typical desktop MCP clients
     const server = await buildServer();

@@ -7,21 +7,21 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 
-export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, port: number) {
-  // --- Host binding ---
-  // AFFINE_SSE_HOST: network interface to bind (default: "127.0.0.1" — loopback only).
+export async function startHttpMcpServer(createMcpServer: () => Promise<McpServer>, port: number) {
+  // --- HTTP host binding ---
+  // AFFINE_MCP_HTTP_HOST: network interface to bind (default: "127.0.0.1" — loopback only).
   // Set to "0.0.0.0" for Docker / remote deployments (Render, Railway, etc.).
-  const host = (process.env.AFFINE_SSE_HOST || "127.0.0.1").trim();
+  const host = (process.env.AFFINE_MCP_HTTP_HOST || "127.0.0.1").trim();
 
-  // --- Bearer Token guard (AFFINE_SSE_TOKEN) ---
+  // --- Bearer Token guard (AFFINE_MCP_HTTP_TOKEN) ---
   // When set, all requests to /mcp, /sse and /messages must include:
   //   Authorization: Bearer <token>   OR   ?token=<token> (fallback for limited clients)
   // When the server is bound to 0.0.0.0 without a token, a startup warning is emitted.
-  const sseSecret = process.env.AFFINE_SSE_TOKEN?.trim();
-  if (!sseSecret && host === "0.0.0.0") {
+  const httpAuthToken = process.env.AFFINE_MCP_HTTP_TOKEN?.trim();
+  if (!httpAuthToken && host === "0.0.0.0") {
     console.warn(
-      "[affine-mcp] WARNING: SSE server is bound to 0.0.0.0 without AFFINE_SSE_TOKEN. " +
-        "The endpoint is unprotected. Set AFFINE_SSE_TOKEN for public deployments."
+      "[affine-mcp] WARNING: HTTP MCP server is bound to 0.0.0.0 without AFFINE_MCP_HTTP_TOKEN. " +
+        "The endpoint is unprotected. Set AFFINE_MCP_HTTP_TOKEN for public deployments."
     );
   }
 
@@ -29,13 +29,13 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
   const jsonBody = express.json({ limit: "50mb" });
 
   // --- CORS origin allowlist ---
-  // AFFINE_SSE_ALLOWED_ORIGINS: comma-separated list, e.g. "https://app.example.com,http://localhost:3000".
-  // AFFINE_SSE_ALLOW_ALL_ORIGINS=true: explicit opt-in to allow any origin (use with caution).
+  // AFFINE_MCP_HTTP_ALLOWED_ORIGINS: comma-separated list, e.g. "https://app.example.com,http://localhost:3000".
+  // AFFINE_MCP_HTTP_ALLOW_ALL_ORIGINS=true: explicit opt-in to allow any origin (use with caution).
   // Default (no env set): only loopback addresses (localhost / 127.0.0.1 / ::1) are allowed.
   //
   // CORS is applied per-route (/mcp, /sse, /messages) — not globally — to minimise attack surface.
-  const allowAnyOrigin = process.env.AFFINE_SSE_ALLOW_ALL_ORIGINS === "true";
-  const allowedOrigins = (process.env.AFFINE_SSE_ALLOWED_ORIGINS || "")
+  const allowAnyOrigin = process.env.AFFINE_MCP_HTTP_ALLOW_ALL_ORIGINS === "true";
+  const allowedOrigins = (process.env.AFFINE_MCP_HTTP_ALLOWED_ORIGINS || "")
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
@@ -84,7 +84,7 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
   // OPTIONS is allowed through so CORS preflight can complete before auth is checked.
   const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     if (req.method === "OPTIONS") return next();
-    if (!sseSecret) return next();
+    if (!httpAuthToken) return next();
 
     const authHeader = req.headers["authorization"];
     const queryToken = typeof req.query.token === "string" ? req.query.token : undefined;
@@ -108,7 +108,7 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
       token = queryToken;
     }
 
-    if (token !== sseSecret) {
+    if (token !== httpAuthToken) {
       res.status(401).send("Unauthorized: Invalid or missing token");
       return;
     }
@@ -169,7 +169,7 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
           }
         };
 
-        const server = await buildServerFunc();
+        const server = await createMcpServer();
         await server.connect(transport);
       } else {
         res.status(400).json({
@@ -218,7 +218,7 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
         delete transports[sessionId];
       });
 
-      const server = await buildServerFunc();
+      const server = await createMcpServer();
       await server.connect(transport);
       console.error(`[affine-mcp] Legacy SSE session established: ${sessionId}`);
     } catch (e) {
@@ -262,7 +262,7 @@ export async function startSSEServer(buildServerFunc: () => Promise<McpServer>, 
 
   // Graceful shutdown: stop accepting new connections, then close active transports.
   const shutdown = async (signal: string) => {
-    console.error(`[affine-mcp] ${signal} received — shutting down gracefully`);
+    console.error(`[affine-mcp] ${signal} received - shutting down gracefully`);
     server.close(() => {
       void (async () => {
         for (const sessionId in transports) {
